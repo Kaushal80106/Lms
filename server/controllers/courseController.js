@@ -1,3 +1,4 @@
+import course from "../models/course.js";
 import Course from "../models/course.js";
 
 //get all courses
@@ -14,7 +15,6 @@ export const getAllCourses = async (req , res) => {
         res.json({success:false,message:error.message})
       }
 }
-
 
 //get course by id
 
