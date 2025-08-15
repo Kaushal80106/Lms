@@ -24,8 +24,11 @@ const criticalEnvVars = [
 const missingCriticalEnvVars = criticalEnvVars.filter(envVar => !process.env[envVar]);
 if (missingCriticalEnvVars.length > 0) {
     console.error('❌ Missing critical environment variables:', missingCriticalEnvVars);
-    console.error('Please check your .env file');
-    process.exit(1);
+    console.error('Please check your environment variables in Vercel');
+    // Don't exit in serverless environment, just log the error
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
 }
 
 // Check optional environment variables and log warnings
@@ -52,8 +55,12 @@ app.use((error, req, res, next) => {
     });
 });
 
-// Connect to services
-const startServer = async () => {
+// Initialize services
+let isInitialized = false;
+
+const initializeServices = async () => {
+    if (isInitialized) return;
+    
     try {
         await connectDB();
         
@@ -66,39 +73,66 @@ const startServer = async () => {
             console.warn('⚠️ Cloudinary connection skipped - missing environment variables');
         }
         
-        // Middlewares
-        app.use(cors());
-        
-        // Stripe webhook must receive the raw body for signature verification
-        app.post('/stripe', express.raw({type: 'application/json'}), stripeWebhooks);
-        
-        // JSON parser for the rest of the API
-        app.use(express.json());
-        app.use(clerkMiddleware());
-
-        // Routes
-        app.get('/', (req, res) => res.send("API working"));
-
-        app.post('/clerk', express.json(), clerkWebhooks);
-        app.use('/api/educator', express.json(), educatorRouter);
-        app.use('/api/courses', express.json(), courseRouter);
-        app.use('/api/user', express.json(), userRouter);
-
-        // Port
-        const PORT = process.env.PORT || 5000;
-
-        app.listen(PORT, () => {
-            console.log(`✅ Server is running on port ${PORT}`);
-            console.log(`🌐 API available at http://localhost:${PORT}`);
-            console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-            if (missingOptionalEnvVars.length > 0) {
-                console.log(`⚠️ Cloudinary features disabled due to missing env vars`);
-            }
-        });
+        isInitialized = true;
+        console.log('✅ Services initialized successfully');
     } catch (error) {
-        console.error('❌ Failed to start server:', error);
-        process.exit(1);
+        console.error('❌ Failed to initialize services:', error);
+        throw error;
     }
 };
 
-startServer();
+// Middlewares
+app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    credentials: true
+}));
+
+// Stripe webhook must receive the raw body for signature verification
+app.post('/stripe', express.raw({type: 'application/json'}), stripeWebhooks);
+
+// JSON parser for the rest of the API
+app.use(express.json({ limit: '10mb' }));
+app.use(clerkMiddleware());
+
+// Health check route
+app.get('/', (req, res) => {
+    res.json({ 
+        success: true, 
+        message: "API working",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// Initialize services before handling requests
+app.use(async (req, res, next) => {
+    try {
+        await initializeServices();
+        next();
+    } catch (error) {
+        console.error('❌ Service initialization failed:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Service initialization failed',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Routes
+app.post('/clerk', express.json(), clerkWebhooks);
+app.use('/api/educator', express.json(), educatorRouter);
+app.use('/api/courses', express.json(), courseRouter);
+app.use('/api/user', express.json(), userRouter);
+
+// Handle 404
+app.use('*', (req, res) => {
+    res.status(404).json({ 
+        success: false, 
+        message: 'Route not found',
+        path: req.originalUrl
+    });
+});
+
+// Export for Vercel
+export default app;

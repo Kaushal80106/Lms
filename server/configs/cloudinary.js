@@ -32,14 +32,16 @@ const connectCloudinary = async () => {
 // Helper function to check if Cloudinary is available
 export const isCloudinaryAvailable = () => isCloudinaryConfigured;
 
-// Helper function to safely upload to Cloudinary
-export const safeCloudinaryUpload = async (filePath, options = {}) => {
+// Helper function to safely upload to Cloudinary (works with Buffer from memory storage)
+export const safeCloudinaryUpload = async (fileBuffer, options = {}) => {
   if (!isCloudinaryConfigured) {
     throw new Error('Cloudinary is not configured. Please check your environment variables.');
   }
   
   try {
-    return await cloudinary.uploader.upload(filePath, options);
+    // Convert buffer to base64 string for Cloudinary
+    const base64String = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`;
+    return await cloudinary.uploader.upload(base64String, options);
   } catch (error) {
     console.error('❌ Cloudinary upload failed:', error.message);
     throw error;

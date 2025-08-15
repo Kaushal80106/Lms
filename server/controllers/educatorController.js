@@ -83,8 +83,8 @@ export const addCourse = async (req, res) => {
 
         console.log('🔄 Uploading image to Cloudinary...');
         
-        // Upload image to Cloudinary using safe function
-        const imageUpload = await safeCloudinaryUpload(imageFile.path);
+        // Upload image to Cloudinary using safe function (with Buffer from memory storage)
+        const imageUpload = await safeCloudinaryUpload(imageFile.buffer);
         console.log('✅ Image uploaded to Cloudinary:', imageUpload.secure_url);
 
         console.log('🔄 Creating course in database...');
@@ -105,34 +105,15 @@ export const addCourse = async (req, res) => {
 
         console.log('✅ Course created successfully:', newCourse._id);
 
-        // Clean up uploaded file
-        try {
-            const fs = await import('fs');
-            if (fs.existsSync(imageFile.path)) {
-                fs.unlinkSync(imageFile.path);
-                console.log('✅ Temporary file cleaned up');
-            }
-        } catch (cleanupError) {
-            console.warn('⚠️ Failed to cleanup temporary file:', cleanupError.message);
-        }
+        // Note: File cleanup skipped in serverless environment (Vercel)
+        console.log('✅ Course created successfully');
 
         res.status(201).json({ success: true, message: 'Course Added', course: newCourse });
 
     } catch (error) {
         console.error('❌ Error in addCourse:', error);
         
-        // Clean up uploaded file on error
-        if (req.file && req.file.path) {
-            try {
-                const fs = await import('fs');
-                if (fs.existsSync(req.file.path)) {
-                    fs.unlinkSync(req.file.path);
-                    console.log('✅ Temporary file cleaned up after error');
-                }
-            } catch (cleanupError) {
-                console.warn('⚠️ Failed to cleanup temporary file after error:', cleanupError.message);
-            }
-        }
+        // Note: File cleanup skipped in serverless environment (Vercel)
         
         res.status(500).json({ success: false, message: error.message });
     }
