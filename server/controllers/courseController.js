@@ -1,44 +1,41 @@
-import course from "../models/course.js";
-import Course from "../models/course.js";
+import Course from '../models/course.js'
 
-//get all courses
-
-export const getAllCourses = async (req , res) => {
-      try {
-        const courses = await Course.find({isPublished:true}).select(
-            ['-courseContent','-enrolledStudents']
-        ).populate({path:'educator'})
-
-
-        res.json({success:true,courses})
-      } catch (error) {
-        res.json({success:false,message:error.message})
-      }
+// Get all courses
+export const getAllCourses = async (req, res) => {
+    try {
+        const courses = await Course.find({ isPublished: true })
+        res.json({ success: true, courses })
+    } catch (error) {
+        console.error('❌ Error in getAllCourses:', error)
+        res.status(500).json({ success: false, message: error.message })
+    }
 }
 
-//get course by id
-
-export const getCourseId  = async (req ,res)=>{
-
-     const {id} = req.params 
+// Get course by ID
+export const getCourseById = async (req, res) => {
     try {
-          const courseData = await Course.findById(id).populate({path:'educator'})
-
-          //remove url if not free
-          courseData.courseContent.forEach(chapter =>{
-            chapter.chapterContent.forEach(lecture => {
-                if(!lecture.isPreviewFree){
-                    lecture.lectureUrl="";
-                }
-            })
-          })
-
-          res.json({success:true ,courseData})
-       
-
+        const { id } = req.params
         
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Course ID is required'
+            })
+        }
+
+        const course = await Course.findById(id)
+        
+        if (!course) {
+            return res.status(404).json({
+                success: false,
+                message: 'Course not found'
+            })
+        }
+
+        res.json({ success: true, course })
     } catch (error) {
-     res.json({success:false , message:error.message})   
+        console.error('❌ Error in getCourseById:', error)
+        res.status(500).json({ success: false, message: error.message })
     }
 }
 
