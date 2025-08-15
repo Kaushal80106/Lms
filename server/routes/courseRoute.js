@@ -4,6 +4,6 @@ import { getAllCourses, getCourseById } from '../controllers/courseController.js
 const courseRouter = express.Router()
 
 courseRouter.get('/', getAllCourses)
-courseRouter.get('/:id', getCourseById)
+courseRouter.get('/:courseId', getCourseById)
 
 export default courseRouter

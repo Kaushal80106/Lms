@@ -45,16 +45,6 @@ if (missingOptionalEnvVars.length > 0) {
     console.warn('Cloudinary features will be disabled');
 }
 
-// Global error handler
-app.use((error, req, res, next) => {
-    console.error('❌ Unhandled error:', error);
-    res.status(500).json({ 
-        success: false, 
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-});
-
 // Initialize services
 let isInitialized = false;
 
@@ -87,11 +77,10 @@ app.use(cors({
     credentials: true
 }));
 
-// Stripe webhook must receive the raw body for signature verification
-app.post('/stripe', express.raw({type: 'application/json'}), stripeWebhooks);
-
-// JSON parser for the rest of the API
+// JSON parser for the API
 app.use(express.json({ limit: '10mb' }));
+
+// Clerk middleware
 app.use(clerkMiddleware());
 
 // Health check route
@@ -119,11 +108,24 @@ app.use(async (req, res, next) => {
     }
 });
 
-// Routes
-app.post('/clerk', express.json(), clerkWebhooks);
-app.use('/api/educator', express.json(), educatorRouter);
-app.use('/api/courses', express.json(), courseRouter);
-app.use('/api/user', express.json(), userRouter);
+// Webhook routes (must be before other routes)
+app.post('/stripe', express.raw({type: 'application/json'}), stripeWebhooks);
+app.post('/clerk', clerkWebhooks);
+
+// API routes
+app.use('/api/educator', educatorRouter);
+app.use('/api/courses', courseRouter);
+app.use('/api/user', userRouter);
+
+// Global error handler
+app.use((error, req, res, next) => {
+    console.error('❌ Unhandled error:', error);
+    res.status(500).json({ 
+        success: false, 
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+});
 
 // Handle 404
 app.use('*', (req, res) => {
@@ -136,3 +138,13 @@ app.use('*', (req, res) => {
 
 // Export for Vercel
 export default app;
+
+// Start server for local development
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📡 Health check: http://localhost:${PORT}/`);
+        console.log(`🔗 API base: http://localhost:${PORT}/api/`);
+    });
+}

@@ -34,7 +34,7 @@ const CourseDetails = () => {
 
   const fetchCourseData = async () => {
     try {
-      const { data } = await axios.get(`${backendUrl}/api/course/${id}`);
+              const { data } = await axios.get(`${backendUrl}/api/courses/${id}`);
       if (data.success) {
         console.log("Fetched course data successfully");
         setCourseData(data.courseData);

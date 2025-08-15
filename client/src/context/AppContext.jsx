@@ -32,7 +32,7 @@ export const AppContextProvider = (props) =>{
 
      const fetchAllCourses = async () =>{
     try {
-      const {data} = await axios.get(backendUrl + '/api/course/all')
+      const {data} = await axios.get(backendUrl + '/api/courses')
         if(data.success) {
             console.log('Fetched all courses successfully');
             setAllCourses(data.courses);

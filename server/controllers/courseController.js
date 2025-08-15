@@ -14,16 +14,16 @@ export const getAllCourses = async (req, res) => {
 // Get course by ID
 export const getCourseById = async (req, res) => {
     try {
-        const { id } = req.params
+        const { courseId } = req.params
         
-        if (!id) {
+        if (!courseId) {
             return res.status(400).json({
                 success: false,
                 message: 'Course ID is required'
             })
         }
 
-        const course = await Course.findById(id)
+        const course = await Course.findById(courseId)
         
         if (!course) {
             return res.status(404).json({

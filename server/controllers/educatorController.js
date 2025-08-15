@@ -39,8 +39,7 @@ export const addCourse = async (req, res) => {
         }
 
         console.log('✅ Image file received:', {
-            filename: imageFile.filename,
-            path: imageFile.path,
+            originalname: imageFile.originalname,
             size: imageFile.size,
             mimetype: imageFile.mimetype
         });
