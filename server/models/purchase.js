@@ -13,7 +13,12 @@ const PurchaseSchema = new mongoose.Schema({
     },
     amount:{type:Number,required:true} ,
     status :{type:String,enum:['pending','completed',
-        'failed' ] ,default:'pending'}
+        'failed' ] ,default:'pending'},
+    // payment bookkeeping
+    paymentIntentId: { type: String },
+    stripeSessionId: { type: String },
+    completedAt: { type: Date },
+    failedAt: { type: Date }
 },{timestamps:true}) ;
  const Purchase = mongoose.model('Purchase',PurchaseSchema)
 export default  Purchase

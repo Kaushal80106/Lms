@@ -17,6 +17,9 @@ await connectCloudinary()
 // middlewares
 
 app.use(cors()) 
+// Stripe webhook must receive the raw body for signature verification
+app.post('/stripe', express.raw({type:'application/json'}), stripeWebhooks)
+// JSON parser for the rest of the API
 app.use(express.json());
 app.use(clerkMiddleware()) ;
 
@@ -27,7 +30,7 @@ app.post('/clerk',express.json(),clerkWebhooks)
 app.use('/api/educator',express.json(),educatorRouter) 
 app.use('/api/course',express.json(),courseRouter)
 app.use('/api/user',express.json(),userRouter)
-app.post('/stripe', express.raw({type:'application/json'}), stripeWebhooks)
+// (Stripe route already registered above to preserve raw body)
 
 // port 
 const PORT  = process.env.PORT || 5000 
