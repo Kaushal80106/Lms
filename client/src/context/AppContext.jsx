@@ -9,15 +9,15 @@ export const AppContext = createContext() ;
 
 export const AppContextProvider = (props) =>{
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL
-    const currency = import.meta.env.VITE_CURRENCY  
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+    const currency = import.meta.env.VITE_CURRENCY || '$'  
 
     // Validate environment variables
-    if (!backendUrl) {
-        console.error('Missing VITE_BACKEND_URL environment variable')
+    if (!import.meta.env.VITE_BACKEND_URL) {
+        console.warn('Missing VITE_BACKEND_URL environment variable, using fallback: http://localhost:5000')
     }
-    if (!currency) {
-        console.error('Missing VITE_CURRENCY environment variable')
+    if (!import.meta.env.VITE_CURRENCY) {
+        console.warn('Missing VITE_CURRENCY environment variable, using fallback: $')
     }
 
     const navigate = useNavigate()

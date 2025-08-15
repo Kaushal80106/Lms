@@ -16,45 +16,42 @@ import StudentEnrolled from './pages/educator/StudentEnrolled'
 import Navbar from './components/students/Navbar'
 import ProfileCompletion from './components/ProfileCompletion'
 import {ToastContainer} from 'react-toastify'
-import { AppContextProvider } from './context/AppContext'
 
 function App() {
 
   const isEducatorRoute = useMatch('/educator/*')
   return (
-    <AppContextProvider>
-      <div className='text-default min-h-screen bg-white'>
-        <ToastContainer/>
+    <div className='text-default min-h-screen bg-white'>
+      <ToastContainer/>
 
-        {
-          !isEducatorRoute &&   <Navbar/>
-        }
-       
-        <Routes>
-          <Route path='/' element={<Home />} />
-          <Route path='/Course-List' element={<CoursesList />} />
-          <Route path='/Course-List/:input' element={<CoursesList />} />
-          <Route path='/Course/:id' element={<CourseDetails/>} />
-          <Route path='/my-enrollments' element={<MyEnrollment/>} />
-          <Route path='/player/:courseId' element={<Player/>} />
-          <Route path='/loading/:path' element={<Loading/>} />
-          <Route path = '/educator' element={<Educator/>}>
-             
-            <Route path='/educator' element={<Dashboard/>} />
-            <Route path='add-course' element={<AddCourse/>} />
-            <Route path='my-courses' element={<MyCourses/>} />
-            <Route path='student-enrolled' element={<StudentEnrolled/>} />
-            
-            
-            
-           </Route>
+      {
+        !isEducatorRoute &&   <Navbar/>
+      }
+     
+      <Routes>
+        <Route path='/' element={<Home />} />
+        <Route path='/Course-List' element={<CoursesList />} />
+        <Route path='/Course-List/:input' element={<CoursesList />} />
+        <Route path='/Course/:id' element={<CourseDetails/>} />
+        <Route path='/my-enrollments' element={<MyEnrollment/>} />
+        <Route path='/player/:courseId' element={<Player/>} />
+        <Route path='/loading/:path' element={<Loading/>} />
+        <Route path = '/educator' element={<Educator/>}>
+           
+          <Route path='/educator' element={<Dashboard/>} />
+          <Route path='add-course' element={<AddCourse/>} />
+          <Route path='my-courses' element={<MyCourses/>} />
+          <Route path='student-enrolled' element={<StudentEnrolled/>} />
+          
+          
+          
+         </Route>
 
-        </Routes>
+      </Routes>
 
-        {/* Profile Completion Modal for New Users */}
-        <ProfileCompletion />
-      </div>
-    </AppContextProvider>
+      {/* Profile Completion Modal for New Users */}
+      <ProfileCompletion />
+    </div>
   )
 }
 
