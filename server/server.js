@@ -140,11 +140,10 @@ app.use('*', (req, res) => {
 export default app;
 
 // Start server for local development
-if (process.env.NODE_ENV !== 'production') {
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
         console.log(`📡 Health check: http://localhost:${PORT}/`);
         console.log(`🔗 API base: http://localhost:${PORT}/api/`);
     });
-}
