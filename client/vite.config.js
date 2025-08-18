@@ -1,28 +1,18 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
+import { defineConfig } from 'vite'
 
-// https://vite.dev/config/
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  build: {
-    // Add build timeout and error handling
-    rollupOptions: {
-      onwarn(warning, warn) {
-        // Suppress some warnings that might cause build issues
-        if (warning.code === 'CIRCULAR_DEPENDENCY') return
-        warn(warning)
-      }
-    },
-    // Add source maps for better debugging
-    sourcemap: false,
-    // Optimize build size
-    minify: 'terser',
-    // Add build timeout
-    chunkSizeWarningLimit: 1000
+  build:{
+    rollupOptions:{
+      external:['mongoose']
+    }
   },
-  // Add server configuration for development
-  server: {
-    port: 3000,
-    host: true
-  }
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
 })
