@@ -74,130 +74,283 @@ export const stripeWebhooks = async (request, response) => {
 
     try {
         switch (event.type) {
-            case 'checkout.session.completed': {
-                const sessionObj = event.data.object;
-                const { purchaseId, userId, courseId } = sessionObj.metadata || {};
-                console.log('🔄 Processing checkout.session.completed:', { purchaseId, userId, courseId });
-                
-                if (!purchaseId || !userId || !courseId) {
-                    console.warn('Missing metadata on checkout.session.completed', sessionObj.id);
-                    break;
-                }
+       case 'checkout.session.completed': {
 
-                const mongoSession = await mongoose.startSession();
-                mongoSession.startTransaction();
-                try {
-                    const existingPurchase = await Purchase.findById(purchaseId).session(mongoSession);
-                    if (!existingPurchase) {
-                        console.warn('Purchase not found for webhook', purchaseId);
-                        await mongoSession.abortTransaction();
-                        break;
-                    }
+    const sessionObj = event.data.object;
 
-                    if (existingPurchase.status === 'completed') {
-                        console.log('Purchase already completed, skipping idempotently', purchaseId);
-                        await mongoSession.commitTransaction();
-                        break;
-                    }
+    const { purchaseId, userId, courseId } =
+        sessionObj.metadata || {};
 
-                    console.log('✅ Updating purchase status to completed');
-                    await Purchase.findByIdAndUpdate(
-                        purchaseId,
-                        {
-                            status: 'completed',
-                            completedAt: new Date(),
-                            paymentIntentId: sessionObj.payment_intent,
-                            stripeSessionId: sessionObj.id
-                        },
-                        { new: true, session: mongoSession }
-                    );
+    console.log(
+        '🔄 Processing checkout.session.completed:',
+        {
+            purchaseId,
+            userId,
+            courseId
+        }
+    );
 
-                    console.log('✅ Adding course to user enrolled courses');
-                    await User.findByIdAndUpdate(
-                        userId,
-                        { $addToSet: { enrolledCourses: courseId } },
-                        { new: true, session: mongoSession }
-                    );
+    if (!purchaseId || !userId || !courseId) {
 
-                    console.log('✅ Adding user to course enrolled students');
-                    await Course.findByIdAndUpdate(
-                        courseId,
-                        { $addToSet: { enrolledStudents: userId } },
-                        { new: true, session: mongoSession }
-                    );
+        console.warn(
+            '❌ Missing metadata on checkout.session.completed',
+            sessionObj.id
+        );
 
-                    await mongoSession.commitTransaction();
-                    console.log('✅ Successfully processed checkout.session.completed for purchase', purchaseId);
-                } catch (err) {
-                    await mongoSession.abortTransaction();
-                    console.error('❌ Error during transactional webhook handling:', err);
-                    throw err;
-                } finally {
-                    mongoSession.endSession();
-                }
-                break;
+        break;
+    }
+
+    try {
+
+        // ==========================================
+        // 1. FIND PURCHASE
+        // ==========================================
+
+        const existingPurchase =
+            await Purchase.findById(purchaseId);
+
+        if (!existingPurchase) {
+
+            console.warn(
+                '❌ Purchase not found:',
+                purchaseId
+            );
+
+            break;
+        }
+
+
+        // ==========================================
+        // 2. CHECK IDEMPOTENCY
+        // ==========================================
+
+        if (existingPurchase.status === 'completed') {
+
+            console.log(
+                'ℹ️ Purchase already completed:',
+                purchaseId
+            );
+
+            break;
+        }
+
+
+        // ==========================================
+        // 3. MARK PURCHASE COMPLETED
+        // ==========================================
+
+        await Purchase.findByIdAndUpdate(
+            purchaseId,
+            {
+                status: 'completed',
+                completedAt: new Date(),
+                paymentIntentId: sessionObj.payment_intent,
+                stripeSessionId: sessionObj.id
             }
-            case 'payment_intent.succeeded': {
-                // Fallback in case Stripe fires only the PI event; derive session and process similarly
-                const paymentIntent = event.data.object;
-                const paymentIntentId = paymentIntent.id;
-                console.log('🔄 Processing payment_intent.succeeded:', paymentIntentId);
-                
-                const sessions = await stripeInstance.checkout.sessions.list({ payment_intent: paymentIntentId });
-                const sessionObj = sessions?.data?.[0];
-                const { purchaseId, userId, courseId } = sessionObj?.metadata || {};
-                if (!purchaseId || !userId || !courseId) {
-                    console.warn('Missing metadata for payment_intent.succeeded', paymentIntentId);
-                    break;
-                }
+        );
 
-                const mongoSession = await mongoose.startSession();
-                mongoSession.startTransaction();
-                try {
-                    const existingPurchase = await Purchase.findById(purchaseId).session(mongoSession);
-                    if (!existingPurchase || existingPurchase.status === 'completed') {
-                        console.log('Purchase already completed or not found, skipping', purchaseId);
-                        await mongoSession.commitTransaction();
-                        break;
+        console.log(
+            '✅ Purchase marked as completed'
+        );
+
+
+        // ==========================================
+        // 4. ADD COURSE TO USER
+        // ==========================================
+
+        const updatedUser =
+            await User.findByIdAndUpdate(
+                userId,
+                {
+                    $addToSet: {
+                        enrolledCourses: courseId
                     }
-
-                    console.log('✅ Updating purchase status to completed via payment_intent.succeeded');
-                    await Purchase.findByIdAndUpdate(
-                        purchaseId,
-                        {
-                            status: 'completed',
-                            completedAt: new Date(),
-                            paymentIntentId: paymentIntentId,
-                            stripeSessionId: sessionObj?.id
-                        },
-                        { new: true, session: mongoSession }
-                    );
-
-                    console.log('✅ Adding course to user enrolled courses via payment_intent.succeeded');
-                    await User.findByIdAndUpdate(
-                        userId,
-                        { $addToSet: { enrolledCourses: courseId } },
-                        { new: true, session: mongoSession }
-                    );
-
-                    console.log('✅ Adding user to course enrolled students via payment_intent.succeeded');
-                    await Course.findByIdAndUpdate(
-                        courseId,
-                        { $addToSet: { enrolledStudents: userId } },
-                        { new: true, session: mongoSession }
-                    );
-
-                    await mongoSession.commitTransaction();
-                    console.log('✅ Successfully processed payment_intent.succeeded for purchase', purchaseId);
-                } catch (err) {
-                    await mongoSession.abortTransaction();
-                    console.error('❌ Error during transactional PI handling:', err);
-                    throw err;
-                } finally {
-                    mongoSession.endSession();
+                },
+                {
+                    new: true
                 }
-                break;
+            );
+
+        console.log(
+            '✅ User enrolled courses:',
+            updatedUser?.enrolledCourses
+        );
+
+
+        // ==========================================
+        // 5. ADD USER TO COURSE
+        // ==========================================
+
+        const updatedCourse =
+            await Course.findByIdAndUpdate(
+                courseId,
+                {
+                    $addToSet: {
+                        enrolledStudents: userId
+                    }
+                },
+                {
+                    new: true
+                }
+            );
+
+        console.log(
+            '✅ Course enrolled students:',
+            updatedCourse?.enrolledStudents
+        );
+
+
+        console.log(
+            '🎉 Successfully enrolled user',
+            userId,
+            'in course',
+            courseId
+        );
+
+    } catch (err) {
+
+        console.error(
+            '❌ Error processing checkout.session.completed:',
+            err
+        );
+
+        throw err;
+    }
+
+    break;
+}
+           case 'payment_intent.succeeded': {
+
+    const paymentIntent = event.data.object;
+
+    const paymentIntentId = paymentIntent.id;
+
+    console.log(
+        '🔄 Processing payment_intent.succeeded:',
+        paymentIntentId
+    );
+
+    const sessions =
+        await stripeInstance.checkout.sessions.list({
+            payment_intent: paymentIntentId
+        });
+
+    const sessionObj = sessions?.data?.[0];
+
+    const {
+        purchaseId,
+        userId,
+        courseId
+    } = sessionObj?.metadata || {};
+
+    if (!purchaseId || !userId || !courseId) {
+
+        console.warn(
+            '❌ Missing metadata for payment_intent.succeeded',
+            paymentIntentId
+        );
+
+        break;
+    }
+
+    try {
+
+        const existingPurchase =
+            await Purchase.findById(purchaseId);
+
+        if (!existingPurchase) {
+
+            console.warn(
+                '❌ Purchase not found:',
+                purchaseId
+            );
+
+            break;
+        }
+
+        if (existingPurchase.status === 'completed') {
+
+            console.log(
+                'ℹ️ Purchase already completed:',
+                purchaseId
+            );
+
+            break;
+        }
+
+
+        // Mark purchase completed
+
+        await Purchase.findByIdAndUpdate(
+            purchaseId,
+            {
+                status: 'completed',
+                completedAt: new Date(),
+                paymentIntentId: paymentIntentId,
+                stripeSessionId: sessionObj?.id
             }
+        );
+
+
+        // Enroll user
+
+        const updatedUser =
+            await User.findByIdAndUpdate(
+                userId,
+                {
+                    $addToSet: {
+                        enrolledCourses: courseId
+                    }
+                },
+                {
+                    new: true
+                }
+            );
+
+
+        // Add student to course
+
+        const updatedCourse =
+            await Course.findByIdAndUpdate(
+                courseId,
+                {
+                    $addToSet: {
+                        enrolledStudents: userId
+                    }
+                },
+                {
+                    new: true
+                }
+            );
+
+
+        console.log(
+            '✅ User enrollment updated:',
+            updatedUser?.enrolledCourses
+        );
+
+        console.log(
+            '✅ Course enrollment updated:',
+            updatedCourse?.enrolledStudents
+        );
+
+        console.log(
+            '🎉 Successfully enrolled user:',
+            userId
+        );
+
+    } catch (err) {
+
+        console.error(
+            '❌ Error processing payment_intent.succeeded:',
+            err
+        );
+
+        throw err;
+    }
+
+    break;
+}
             case 'payment_intent.payment_failed': {
                 const paymentIntent = event.data.object;
                 const paymentIntentId = paymentIntent.id;

@@ -30,6 +30,10 @@ function Navbar() {
        if(data.success) {
          setIsEducator(true);
          toast.success('You are now an educator');
+         // Navigate after a short delay to ensure state updates
+         setTimeout(() => {
+           navigate('/educator')
+         }, 100)
        } else {
          toast.error(`Error: ${data.message}`);
        }

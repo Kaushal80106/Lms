@@ -6,14 +6,17 @@ import humanizeDuration from 'humanize-duration'
 import YouTube from 'react-youtube' 
 import Footer from '../../components/students/Footer'
 import Rating from '../../components/students/Rating'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 const Player = () => { 
   
 
-  const {enrolledCourses , calculateChapterTime} = useContext(AppContext) 
+  const {enrolledCourses, calculateChapterTime, backendUrl, getToken} = useContext(AppContext) 
   const {courseId} = useParams() 
-  const [courseData , setCourseData] = useState(null) 
-  const [openSection , setOpenSection] = useState({})
-   const [playerData, setPlayerData] = useState(null)
+  const [courseData, setCourseData] = useState(null) 
+  const [openSection, setOpenSection] = useState({})
+  const [playerData, setPlayerData] = useState(null)
+  const [progressData, setProgressData] = useState(null)
 
 
   const getCourseData = () =>{
@@ -24,9 +27,44 @@ const Player = () => {
     })
   }
 
-useEffect(()=>{
-  getCourseData()
-},[enrolledCourses])
+  const getCourseProgress = async () => {
+    try {
+      const token = await getToken()
+      if (!token) return;
+      const { data } = await axios.post(`${backendUrl}/api/user/course-progress`, { courseId }, { headers: { Authorization: `Bearer ${token}` } })
+      if (data.success) {
+        setProgressData(data.progressData)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const markLectureAsCompleted = async (lectureId) => {
+    try {
+      const token = await getToken()
+      if (!token) return;
+      const { data } = await axios.post(`${backendUrl}/api/user/update-course-progress`, { courseId, lectureId }, { headers: { Authorization: `Bearer ${token}` } })
+      if (data.success) {
+        toast.success(data.message)
+        getCourseProgress()
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  useEffect(() => {
+    getCourseData()
+  }, [enrolledCourses])
+
+  useEffect(() => {
+    getCourseProgress()
+  }, [])
 
   const toggleSection = (index)=>{
     setOpenSection((prev)=>(
@@ -65,7 +103,7 @@ useEffect(()=>{
                                         border-t border-gray-300'>
                                           {chapter.chapterContent.map((lecture , i) => (
                                             <li key={i} className='flex items-start gap-2 py-1'>
-                                              <img src={false ? assets.blue_tick_icon:assets.play_icon} alt="playicon" className='w-4 *:h-4 mt-1'/>
+                                              <img src={progressData && progressData.lectureCompleted.includes(lecture.lectureId) ? assets.blue_tick_icon : assets.play_icon} alt="playicon" className='w-4 *:h-4 mt-1'/>
                                               <div className='flex items-center justify-between w-full text-gray-800 text-xs md:text-default'>
                                                 <p>{lecture.lectureTitle}</p>
                                                 <div>
@@ -100,7 +138,7 @@ useEffect(()=>{
       {
       playerData ? (
         <div > 
-          <YouTube videoId={playerData.lectureUrl.split('/').pop()} 
+          <YouTube videoId={playerData.lectureUrl.includes("v=") ? playerData.lectureUrl.split("v=")[1].split("&")[0] : playerData.lectureUrl.split('/').pop()} 
           iframeClassName='w-full aspect-video'></YouTube>
           <div className='flex justify-between items-center mt-1'> 
             <p>
@@ -108,7 +146,9 @@ useEffect(()=>{
                 playerData.lectureTitle
               } 
             </p>
-            <button className='text-blue-600'>{false ? 'Completed' : 'Mark Complete'}</button>
+            <button onClick={() => markLectureAsCompleted(playerData.lectureId)} className='text-blue-600'>
+              {progressData && progressData.lectureCompleted.includes(playerData.lectureId) ? 'Completed' : 'Mark Complete'}
+            </button>
              </div>
            </div>
       ) 

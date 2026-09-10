@@ -73,7 +73,21 @@ const initializeServices = async () => {
 
 // Middlewares
 app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+
+        if (process.env.NODE_ENV === 'production') {
+            const allowed = process.env.FRONTEND_URL;
+            return callback(null, !allowed || origin === allowed);
+        }
+
+        // Local dev: reflect any localhost origin back
+        if (/^http:\/\/localhost:\d+$/.test(origin)) {
+            return callback(null, origin);
+        }
+
+        callback(null, origin === process.env.FRONTEND_URL ? origin : false);
+    },
     credentials: true
 }));
 
@@ -140,10 +154,24 @@ app.use('*', (req, res) => {
 export default app;
 
 // Start server for local development
-
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`📡 Health check: http://localhost:${PORT}/`);
-        console.log(`🔗 API base: http://localhost:${PORT}/api/`);
+const PORT = process.env.PORT || 5000;
+initializeServices()
+    .then(() => {
+        const server = app.listen(PORT, () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`📡 Health check: http://localhost:${PORT}/`);
+            console.log(`🔗 API base: http://localhost:${PORT}/api/`);
+        });
+        server.on('error', (error) => {
+            if (error.code === 'EADDRINUSE') {
+                console.error(`❌ Port ${PORT} is already in use. Stop the other server first, or run:`);
+                console.error(`   Stop-Process -Id (Get-NetTCPConnection -LocalPort ${PORT}).OwningProcess -Force`);
+                process.exit(1);
+            }
+            throw error;
+        });
+    })
+    .catch((error) => {
+        console.error('❌ Failed to start server:', error.message);
+        process.exit(1);
     });

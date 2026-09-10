@@ -3,18 +3,106 @@ import Course from '../models/course.js';
 import Purchase from '../models/purchase.js';
 import Stripe from 'stripe';
 import CourseProgress from '../models/courseProgress.js';
+import { clerkClient } from '@clerk/express';
+import mongoose from 'mongoose';
+
+const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+const getClientUrl = (req) =>
+  req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:5175';
+
+const getAuthUserId = (req) => {
+  const userId = req.auth()?.userId;
+  if (!userId) throw new Error('Authentication required');
+  return userId;
+};
+
+const ensureUserExists = async (req) => {
+  const userId = getAuthUserId(req);
+  let user = await User.findById(userId);
+
+  if (!user) {
+    let email = 'unknown@email.com';
+    let name = 'Anonymous User';
+    let imageUrl = '';
+
+    try {
+      const clerkUser = await clerkClient.users.getUser(userId);
+      email = clerkUser.emailAddresses[0]?.emailAddress || email;
+      name = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || clerkUser.username || name;
+      imageUrl = clerkUser.imageUrl || '';
+    } catch {
+      const claims = req.auth().sessionClaims || {};
+      email = claims.email || email;
+      name = claims.name || claims.full_name || name;
+      imageUrl = claims.image_url || '';
+    }
+
+    user = await User.create({
+      _id: userId,
+      email,
+      name,
+      imageUrl,
+      isProfileComplete: true,
+      enrolledCourses: [],
+    });
+  }
+
+  return user;
+};
+
+const completePurchase = async ({ purchaseId, userId, courseId, stripeSessionId, paymentIntentId }) => {
+  const mongoSession = await mongoose.startSession();
+  mongoSession.startTransaction();
+  try {
+    const purchase = await Purchase.findById(purchaseId).session(mongoSession);
+    if (!purchase || purchase.status === 'completed') {
+      await mongoSession.commitTransaction();
+      return purchase;
+    }
+
+    await Purchase.findByIdAndUpdate(
+      purchaseId,
+      {
+        status: 'completed',
+        completedAt: new Date(),
+        paymentIntentId,
+        stripeSessionId,
+      },
+      { session: mongoSession }
+    );
+
+    await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { enrolledCourses: courseId } },
+      { session: mongoSession }
+    );
+
+    await Course.findByIdAndUpdate(
+      courseId,
+      { $addToSet: { enrolledStudents: userId } },
+      { session: mongoSession }
+    );
+
+    await mongoSession.commitTransaction();
+    return purchase;
+  } catch (error) {
+    await mongoSession.abortTransaction();
+    throw error;
+  } finally {
+    mongoSession.endSession();
+  }
+};
+
+const isEnrolled = (user, courseId) =>
+  user?.enrolledCourses?.some((id) => String(id) === String(courseId));
 
 // ===============================
 // Get logged-in user data
 // ===============================
 export const getUserData = async (req, res) => {
   try {
-    const userId = req.auth().userId;
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    const user = await ensureUserExists(req);
 
     res.json({
       success: true,
@@ -31,13 +119,8 @@ export const getUserData = async (req, res) => {
 // ===============================
 export const userEnrolledCourses = async (req, res) => {
   try {
-    const userId = req.auth().userId;
-  
-    const userData = await User.findById(userId).populate('enrolledCourses');
-
-    if (!userData) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    await ensureUserExists(req);
+    const userData = await User.findById(req.auth().userId).populate('enrolledCourses');
 
     res.json({ success: true, enrolledCourses: userData.enrolledCourses });
   } catch (error) {
@@ -52,20 +135,15 @@ export const userEnrolledCourses = async (req, res) => {
 export const purchaseCourse = async (req, res) => {
   try {
     const { courseId } = req.body;
-    const { origin } = req.headers;
-    const userId = req.auth().userId;
+    const userId = getAuthUserId(req);
+    const clientUrl = getClientUrl(req);
 
-    if (!courseId || !userId) {
-      return res.status(400).json({ success: false, message: 'Course ID and authentication required' });
+    if (!courseId) {
+      return res.status(400).json({ success: false, message: 'Course ID required' });
     }
 
-    // Check if user is already enrolled in this course
-    const userData = await User.findById(userId);
-    if (!userData) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    
-    if (userData.enrolledCourses && userData.enrolledCourses.includes(courseId)) {
+    const userData = await ensureUserExists(req);
+    if (isEnrolled(userData, courseId)) {
       return res.status(400).json({ success: false, message: 'You are already enrolled in this course' });
     }
 
@@ -78,62 +156,81 @@ export const purchaseCourse = async (req, res) => {
     const discountPct = Number(courseData.discount) || 0;
     const netAmount = Number((grossPrice - (discountPct * grossPrice) / 100).toFixed(2));
 
-    const purchaseData = {
+    if (netAmount < 0.5) {
+      return res.status(400).json({ success: false, message: 'Course price must be at least $0.50' });
+    }
+
+    const newPurchase = await Purchase.create({
       courseId: courseData._id,
       userId,
       amount: netAmount,
       status: 'pending',
-      createdAt: new Date()
-    };
-    
-    console.log('Creating purchase with data:', purchaseData);
-    const newPurchase = await Purchase.create(purchaseData);
-    console.log('Purchase created successfully:', newPurchase._id);
-
-    // Stripe gateway
-    const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
-    console.log('Stripe instance created, creating checkout session...');
-
-    // Create Stripe session
-    const currency = process.env.CURRENCY?.toLowerCase() || 'usd';
-    console.log('Using currency:', currency);
-   
-    const line_items = [{
-      price_data: {
-        currency,
-        product_data: {
-          name: courseData.courseTitle
-        },
-        unit_amount: Math.round(Number(newPurchase.amount) * 100)
-      },
-      quantity: 1
-    }];
-
-    console.log('Line items created:', line_items);
-    console.log('Creating Stripe session with metadata:', {
-      purchaseId: newPurchase._id.toString(),
-      userId: userId,
-      courseId: courseData._id.toString()
     });
 
-    // Session creation
+    const currency = process.env.CURRENCY?.toLowerCase() || 'usd';
+
     const session = await stripeInstance.checkout.sessions.create({
-      success_url: `${origin}/loading/my-enrollments`,
-      cancel_url: `${origin}/`,
-      line_items: line_items,
+      success_url: `${clientUrl}/loading/my-enrollments?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientUrl}/`,
+      line_items: [{
+        price_data: {
+          currency,
+          product_data: { name: courseData.courseTitle },
+          unit_amount: Math.round(netAmount * 100),
+        },
+        quantity: 1,
+      }],
       mode: 'payment',
       metadata: {
         purchaseId: newPurchase._id.toString(),
-        userId: userId,
-        courseId: courseData._id.toString()
-      }
+        userId,
+        courseId: courseData._id.toString(),
+      },
     });
-    
-    console.log('Stripe session created successfully:', session.id);
-    res.json({ success: true, session_url: session.url });
 
+    res.json({ success: true, session_url: session.url });
   } catch (error) {
     console.error('❌ Error in purchaseCourse:', error);
+    const status = error.message === 'Authentication required' ? 401 : 500;
+    res.status(status).json({ success: false, message: error.message });
+  }
+};
+
+export const verifyPurchase = async (req, res) => {
+  try {
+    const { session_id: sessionId } = req.query;
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'Session ID required' });
+    }
+
+    const session = await stripeInstance.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') {
+      return res.status(400).json({ success: false, message: 'Payment not completed' });
+    }
+
+    const { purchaseId, userId, courseId } = session.metadata || {};
+    if (!purchaseId || !userId || !courseId) {
+      return res.status(400).json({ success: false, message: 'Invalid checkout session' });
+    }
+
+    const authUserId = req.auth()?.userId;
+    if (authUserId && authUserId !== userId) {
+      return res.status(403).json({ success: false, message: 'Unauthorized purchase verification' });
+    }
+
+    await completePurchase({
+      purchaseId,
+      userId,
+      courseId,
+      stripeSessionId: session.id,
+      paymentIntentId: session.payment_intent,
+    });
+
+    res.json({ success: true, message: 'Purchase verified and enrollment completed' });
+  } catch (error) {
+    console.error('❌ Error in verifyPurchase:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

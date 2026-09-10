@@ -1,12 +1,13 @@
 import React from 'react'
-import { useMatch } from 'react-router-dom'
-import { Routes ,Route } from 'react-router-dom'
+import { useMatch, Routes, Route } from 'react-router-dom'
+
 import Home from './pages/student/Home'
 import CoursesList from './pages/student/CoursesList'
 import CourseDetails from './pages/student/CourseDetails'
 import MyEnrollment from './pages/student/MyEnrollment'
 import Player from './pages/student/Player'
 import Loading from './components/students/Loading'
+
 import Educator from './pages/educator/Educator'
 import Dashboard from './pages/educator/Dashboard'
 import AddCourse from './pages/educator/AddCourse'
@@ -15,44 +16,105 @@ import StudentEnrolled from './pages/educator/StudentEnrolled'
 
 import Navbar from './components/students/Navbar'
 import ProfileCompletion from './components/ProfileCompletion'
-import {ToastContainer} from 'react-toastify'
+import { ToastContainer } from 'react-toastify'
 
 function App() {
 
-  const isEducatorRoute = useMatch('/educator/*')
-  return (
-    <div className='text-default min-h-screen bg-white'>
-      <ToastContainer/>
+    const isEducatorRoute = useMatch('/educator/*')
 
-      {
-        !isEducatorRoute &&   <Navbar/>
-      }
-     
-      <Routes>
-        <Route path='/' element={<Home />} />
-        <Route path='/Course-List' element={<CoursesList />} />
-        <Route path='/Course-List/:input' element={<CoursesList />} />
-        <Route path='/Course/:id' element={<CourseDetails/>} />
-        <Route path='/my-enrollments' element={<MyEnrollment/>} />
-        <Route path='/player/:courseId' element={<Player/>} />
-        <Route path='/loading/:path' element={<Loading/>} />
-        <Route path = '/educator' element={<Educator/>}>
-           
-          <Route path='/educator' element={<Dashboard/>} />
-          <Route path='add-course' element={<AddCourse/>} />
-          <Route path='my-courses' element={<MyCourses/>} />
-          <Route path='student-enrolled' element={<StudentEnrolled/>} />
-          
-          
-          
-         </Route>
+    return (
+        <>
+            {/* Student Navbar */}
+            {!isEducatorRoute && <Navbar />}
 
-      </Routes>
+            <Routes>
 
-      {/* Profile Completion Modal for New Users */}
-      <ProfileCompletion />
-    </div>
-  )
+                {/* ==================== */}
+                {/* STUDENT ROUTES       */}
+                {/* ==================== */}
+
+                <Route
+                    path="/"
+                    element={<Home />}
+                />
+
+                <Route
+                    path="/course-list"
+                    element={<CoursesList />}
+                />
+
+                <Route
+                    path="/course-list/:input"
+                    element={<CoursesList />}
+                />
+
+                <Route
+                    path="/course/:id"
+                    element={<CourseDetails />}
+                />
+
+                <Route
+                    path="/my-enrollments"
+                    element={<MyEnrollment />}
+                />
+
+                <Route
+                    path="/player/:courseId"
+                    element={<Player />}
+                />
+
+                <Route
+                    path="/loading/:path"
+                    element={<Loading />}
+                />
+
+
+                {/* ==================== */}
+                {/* EDUCATOR ROUTES      */}
+                {/* ==================== */}
+
+                <Route
+                    path="/educator"
+                    element={<Educator />}
+                >
+
+                    {/* /educator */}
+                    <Route
+                        index
+                        element={<Dashboard />}
+                    />
+
+                    {/* /educator/add-course */}
+                    <Route
+                        path="add-course"
+                        element={<AddCourse />}
+                    />
+
+                    {/* /educator/my-courses */}
+                    <Route
+                        path="my-courses"
+                        element={<MyCourses />}
+                    />
+
+                    {/* /educator/student-enrolled */}
+                    <Route
+                        path="student-enrolled"
+                        element={<StudentEnrolled />}
+                    />
+
+                </Route>
+
+            </Routes>
+
+
+            {/* Profile Completion Modal */}
+            <ProfileCompletion />
+
+            {/* Toast Messages */}
+            <ToastContainer />
+
+        </>
+    )
 }
 
 export default App

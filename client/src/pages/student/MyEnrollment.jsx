@@ -77,7 +77,29 @@ const MyEnrollment = () => {
     if (userData) {
       fetchUserEnrolledCourses()
     }
-  }, [userData, fetchUserEnrolledCourses])
+  }, [userData])
+
+  useEffect(() => {
+    const sessionId = new URLSearchParams(window.location.search).get('session_id')
+    if (!sessionId || !userData) return
+
+    const verifyAndRefresh = async () => {
+      try {
+        const token = await getToken()
+        await axios.get(`${backendUrl}/api/user/verify-purchase`, {
+          params: { session_id: sessionId },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        await fetchUserEnrolledCourses()
+        setShowSuccessMessage(true)
+        window.history.replaceState({}, '', '/my-enrollments')
+      } catch (error) {
+        console.error('Enrollment verification failed:', error)
+      }
+    }
+
+    verifyAndRefresh()
+  }, [userData, backendUrl, getToken, fetchUserEnrolledCourses])
 
   if (loading) {
     return (
@@ -95,7 +117,7 @@ const MyEnrollment = () => {
         <div className='text-center'>
           <p className='text-gray-600 text-xl mb-4'>No courses enrolled yet</p>
           <button 
-            onClick={() => navigate('/Course-List')}
+            onClick={() => navigate('/course-list')}
             className='px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
           >
             Browse Courses

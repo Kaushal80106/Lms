@@ -13,10 +13,11 @@ const Sidebar = () => {
                 {name : 'Student Enrolled ' ,path : '/educator/student-enrolled',icon : assets.person_tick_icon},
   ];
 
-  return  isEducator && (
+  return (
     <div className='md:w-64 w-16 border-r min-h-screen text-base border-gray-500 
     py-2 flex flex-col'>
-        {menuItems.map((item)=>(
+      {isEducator ? (
+        menuItems.map((item)=>(
           <NavLink 
           to={item.path}
           key={item.name}
@@ -30,7 +31,12 @@ const Sidebar = () => {
             <img src={item.icon} alt="" className='w-6 h-6' /> 
             <p className='md:block hidden text-center '> { item.name}</p>
           </NavLink>
-        ))}
+        ))
+      ) : (
+        <div className='flex items-center justify-center h-full'>
+          <p className='text-center text-gray-500 text-sm px-2'>Loading...</p>
+        </div>
+      )}
     </div>
   )
 }

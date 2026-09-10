@@ -9,7 +9,7 @@ export const AppContext = createContext() ;
 
 export const AppContextProvider = (props) =>{
 
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001'
     const currency = import.meta.env.VITE_CURRENCY || '$'  
 
     // Validate environment variables
@@ -48,9 +48,18 @@ export const AppContextProvider = (props) =>{
     }
  }
 
- // fetch user data 
+ useEffect(() => {
+    if (user?.publicMetadata?.role === 'educator') {
+        setIsEducator(true)
+        return
+    }
+
+    setIsEducator(false)
+}, [user])
+
+// fetch user data 
 const fetchUserData = async () => {
-    if(user.publicMetadata.role === 'educator') {
+    if(user?.publicMetadata?.role === 'educator') {
         setIsEducator(true);
     }
 
@@ -74,8 +83,8 @@ const fetchUserData = async () => {
                     if (!profileResponse.data.profileComplete) {
                         // User exists but profile incomplete
                         setUserData({
-                            _id: user.id,
-                            email: user.primaryEmailAddress?.emailAddress || '',
+                            _id: user?.id,
+                            email: user?.primaryEmailAddress?.emailAddress || '',
                             name: 'Anonymous User',
                             imageUrl: '',
                             isProfileComplete: false
@@ -97,8 +106,8 @@ const fetchUserData = async () => {
                 console.log('Profile status check failed, creating basic user data');
                 // Create basic user data from Clerk
                 setUserData({
-                    _id: user.id,
-                    email: user.primaryEmailAddress?.emailAddress || '',
+                    _id: user?.id,
+                    email: user?.primaryEmailAddress?.emailAddress || '',
                     name: 'Anonymous User',
                     imageUrl: '',
                     isProfileComplete: false
@@ -109,11 +118,12 @@ const fetchUserData = async () => {
         console.log('User data fetch failed, creating basic user data from Clerk');
         // Create basic user data from Clerk
         setUserData({
-            _id: user.id,
-            email: user.primaryEmailAddress?.emailAddress || '',
-            name: 'Anonymous User',
-            imageUrl: '',
-            isProfileComplete: false
+            _id: user?.id,
+            email: user?.primaryEmailAddress?.emailAddress || '',
+            name: user?.fullName || user?.firstName || 'Anonymous User',
+            imageUrl: user?.imageUrl || '',
+            isProfileComplete: true,
+            enrolledCourses: []
         });
     }
 }

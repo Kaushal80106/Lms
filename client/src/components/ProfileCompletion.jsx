@@ -13,9 +13,10 @@ const ProfileCompletion = ({ onComplete, isOpen }) => {
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    // Show modal if user data is incomplete
-    if (userData && !userData.isProfileComplete) {
+    if (userData && userData.isProfileComplete === false && (!userData.name || userData.name === 'Anonymous User')) {
       setShowModal(true)
+    } else {
+      setShowModal(false)
     }
   }, [userData])
 
