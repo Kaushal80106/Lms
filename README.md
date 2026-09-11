@@ -2,6 +2,12 @@
 
 A full-stack MERN (MongoDB, Express.js, React, Node.js) application for managing online courses, student enrollments, and payments.
 
+## 🔗 Links
+
+- **Live Demo / Frontend:** [https://edemy-lms-frontend-jet.vercel.app/](https://edemy-lms-frontend-jet.vercel.app/)
+- **Backend / API:** [https://edemy-api-weld.vercel.app/](https://edemy-api-weld.vercel.app/)
+- **GitHub Repository:** [https://github.com/Kaushal80106/Lms](https://github.com/Kaushal80106/Lms)
+
 ## 🚀 Features
 
 - **User Management**: Student and educator roles with Clerk authentication
